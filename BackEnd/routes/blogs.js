@@ -1,9 +1,11 @@
 import express from "express"
-import { createBlog, getAllBlogs, getBlogById, getFeaturedAndRecentBlogs ,getPaginatedBlogs  } from "../controllers/blogController.js"
+import { createBlog, getAllBlogs, getBlogById, getFeaturedAndRecentBlogs ,getPaginatedBlogs, bulkCreateBlogs  } from "../controllers/blogController.js"
 
 const router = express.Router()
 
 router.post("/", createBlog)
+
+router.post("/bulk", bulkCreateBlogs)
 
 router.get("/featured-and-recent", getFeaturedAndRecentBlogs)
 

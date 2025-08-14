@@ -95,7 +95,7 @@ export default function BlogPage() {
                   className="bg-gray-900 border-gray-800 hover:bg-gray-800 transition-colors cursor-pointer min-w-fit"
                 >
                   <CardContent className="p-4">
-                    <h3 className="font-semibold text-sm mb-1">{topic.topic}</h3>
+                    <h3 className="font-semibold text-gray-200 text-sm mb-1">{topic.topic}</h3>
                     <p className="text-xs text-gray-400">{topic.count}</p>
                   </CardContent>
                 </Card>
@@ -112,7 +112,7 @@ export default function BlogPage() {
                 {blogCategories.map((category) => (
                   <Button
                     key={category}
-                    variant={selectedCategory === category ? "default" : "outline"}
+                    variant={selectedCategory === category ? "default" : "primary"}
                     onClick={() => setSelectedCategory(category)}
                     className={`whitespace-nowrap ${
                       selectedCategory === category
@@ -174,12 +174,12 @@ export default function BlogPage() {
                     </div>
                     <CardContent className="p-6">
                       <div className="flex items-center space-x-2 mb-3">
-                        <Badge variant="outline" className="border-gray-600">
+                        <Badge variant="secondary" className="border-gray-600">
                           {post.category}
                         </Badge>
                       </div>
                       <h3
-                        className={`font-bold mb-3 group-hover:text-red-400 transition-colors ${
+                        className={`font-bold mb-3 text-gray-300 group-hover:text-red-400 transition-colors ${
                           index === 0 ? "text-2xl" : "text-xl"
                         }`}
                       >
@@ -256,17 +256,17 @@ export default function BlogPage() {
                   </div>
                   <CardContent className="p-4">
                     <div className="flex items-center space-x-2 mb-2">
-                      <Badge variant="outline" className="text-xs border-gray-600">
+                      <Badge variant="secondary" className="text-xs border-gray-600">
                         {post.category}
                       </Badge>
                     </div>
-                    <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-red-400 transition-colors">
+                    <h3 className="font-semibold text-lg mb-2 line-clamp-2 text-gray-200 group-hover:text-red-400 transition-colors">
                       {post.title}
                     </h3>
                     <p className="text-gray-400 text-sm mb-4 line-clamp-2">{post.description}</p>
                     <div className="flex flex-wrap gap-1 mb-4">
                       {post.tags.slice(0, 3).map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-xs border-gray-600">
+                        <Badge key={tag} variant="secondary" className="text-xs border-gray-600">
                           {tag}
                         </Badge>
                       ))}

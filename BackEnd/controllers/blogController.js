@@ -10,6 +10,58 @@ export const createBlog = async (req, res) => {
   }
 }
 
+
+//create bulks with reference_id
+
+
+export const bulkCreateBlogs = async (req, res) => {
+  try {
+    // Accept either an array or { items: [...] }
+    const items = Array.isArray(req.body) ? req.body : (req.body.items || [])
+    if (!items.length) {
+      return res.status(200).json({ ok: true, inserted: 0, upserted: 0 })
+    }
+
+    const now = new Date()
+    const ops = items.map((it) => {
+      if (it && typeof it.reference_id === "string" && it.reference_id.trim() !== "") {
+        // Upsert by reference_id (idempotent)
+        return {
+          updateOne: {
+            filter: { reference_id: it.reference_id },
+            update: {
+              // on first insert, write everything + createdAt
+              $setOnInsert: { ...it, createdAt: now },
+              // on every run, at least bump updatedAt; add fields here if you want to keep them in sync
+              $set: { updatedAt: now },
+            },
+            upsert: true,
+          },
+        }
+      }
+      // No reference_id → plain insert (duplicates are possible)
+      return { insertOne: { document: it } }
+    })
+
+    const result = await Blog.bulkWrite(ops, { ordered: false })
+    return res.status(200).json({
+      ok: true,
+      inserted: result.insertedCount || 0,
+      upserted: result.upsertedCount || 0,
+      matched: result.matchedCount || 0,
+      modified: result.modifiedCount || 0,
+    })
+  } catch (err) {
+    // Duplicate key errors (if unique index enabled) will land here
+    if (err?.code === 11000) {
+      return res.status(409).json({ ok: false, code: "DUP_KEY", error: err.message })
+    }
+    return res.status(500).json({ ok: false, error: err.message })
+  }
+}
+
+
+
 export const getAllBlogs = async (req, res) => {
   const blogs = await Blog.find().sort({ createdAt: -1 })
   res.json(blogs)

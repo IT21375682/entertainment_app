@@ -62,10 +62,10 @@ export default function BlogPostPage() {
             <div className="flex items-center space-x-4">
               <Avatar className="w-12 h-12">
                 <AvatarImage src={article.authorAvatar || "/placeholder.svg"} alt={article.author} />
-                <AvatarFallback>{article.author[0]}</AvatarFallback>
+                {/* <AvatarFallback>{article.author[0]||'author'}</AvatarFallback> */}
               </Avatar>
               <div>
-                <p className="font-semibold">{article.author}</p>
+                <p className="font-semibold">{article.author||'author'}</p>
                 <div className="flex items-center space-x-4 text-sm text-gray-400">
                   <div className="flex items-center space-x-1">
                     <Calendar className="w-3 h-3" />

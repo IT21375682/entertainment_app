@@ -1,43 +1,40 @@
-# ingest_rss.py
-import os, re, time, requests, feedparser, hashlib
+#!/usr/bin/env python3
+import os, re, time, json, hashlib, requests, feedparser
+from typing import List, Dict, Any, Tuple
 from datetime import datetime, timedelta, timezone
 from dateutil import parser as dateparse
-from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
 from readability import Document
-from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode, urljoin
 from image_resolver import resolve_best_image
 
-API_URL = os.getenv("API_URL", "http://localhost:5000/api/stories/bulk")
-PDF_PATH = os.getenv("RSS_PDF", "rss-urls-1.pdf")
-
-# ---------- knobs ----------
-CUTOFF_DAYS = 5
-MAX_ITEMS_PER_FEED = 20
-BATCH_SIZE = 100
-REQUEST_TIMEOUT = 60
-PAGE_TIMEOUT = 10
-MIN_WORDS = 120
-SLEEP_BETWEEN_FEEDS = 0.2
-# ---------------------------
+API_URL      = os.getenv("API_URL", "http://localhost:5000/api/stories/bulk")
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "60"))
+PAGE_TIMEOUT    = int(os.getenv("PAGE_TIMEOUT", "10"))
+BATCH_SIZE      = int(os.getenv("BATCH_SIZE", "100"))
+MIN_WORDS       = int(os.getenv("MIN_WORDS", "120"))
+CUTOFF_DAYS     = int(os.getenv("CUTOFF_DAYS", "5"))
+SLEEP_BETWEEN_FEEDS = float(os.getenv("SLEEP_BETWEEN_FEEDS", "0.25"))
+MAX_ITEMS_PER_FEED  = int(os.getenv("MAX_ITEMS_PER_FEED", "20"))
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 
-SPORTS_DOMAINS = [
-    "espn.com","sports.yahoo.com","si.com","cbssports.com","theguardian.com/sport",
-    "latimes.com/sports","reuters.com","apnews.com","washingtonpost.com/early-lead",
-    "buzzfeed.com/sports","nytimes.com/nyt/sports","cbssports.com","si.com/rss"
+# Curated movie & sports RSS feeds (only these two categories)
+MOVIE_FEEDS = [
+    "https://variety.com/feed/",
+    "https://www.hollywoodreporter.com/t/rss",
+    "https://deadline.com/feed/",
+    "https://www.indiewire.com/feed/",
+    "https://screenrant.com/feed/",
+    "https://ew.com/feeds/rss/",
 ]
-MOVIE_DOMAINS = [
-    "variety.com","hollywoodreporter.com","latimes.com/entertainment",
-    "deadline.com","tmz.com","ew.com","rollingstone.com","people.com","popsugar.com",
-    "reuters.com/lifestyle/entertainment","buzzfeed.com/tvandmovies","mtv.com/rss/news",
-    "ign.com","gamespot.com","screenrant.com","indiewire.com"
-]
-BLOG_DOMAINS = [
-    "medium.com","substack.com","blogspot.","wordpress.","newyorker.com","theatlantic.com",
-    "vox.com","qz.com","huffpost.com","mashable.com"
+SPORTS_FEEDS = [
+    "https://feeds.reuters.com/reuters/sportsNews",
+    "https://www.theguardian.com/sport/rss",
+    "https://www.cbssports.com/rss/headlines/",
+    "https://apnews.com/hub/apf-sports?utm_source=apnews.com&utm_medium=rss",  # AP sports RSS
+    "https://www.espn.com/espn/rss/news",  # general ESPN news feed
 ]
 
 URL_RE = re.compile(r"https?://[^\s<>\"']+", re.I)
@@ -47,6 +44,7 @@ def canonicalize_url(raw: str) -> str | None:
     if not raw: return None
     try:
         u = urlparse(raw)
+        # strip trackers & fragments; lowercase host
         query = [(k,v) for (k,v) in parse_qsl(u.query, keep_blank_values=True) if k.lower() not in TRACK_PARAMS]
         u = u._replace(netloc=u.netloc.lower(), fragment="", query=urlencode(query))
         return urlunparse(u)
@@ -59,52 +57,20 @@ def make_fingerprint(source: str, guid: str, title: str, published_iso: str, can
             f"{(source or '').strip().lower()}|{(title or '').strip().lower()}|{(published_iso or '')[:10]}"
     return hashlib.sha256(basis.encode("utf-8")).hexdigest()
 
-def extract_urls_from_pdf(pdf_path: str) -> list[str]:
-    reader = PdfReader(pdf_path)
-    text = "\n".join((page.extract_text() or "") for page in reader.pages)
-    urls = URL_RE.findall(text)
-    rss_like = [u for u in urls if any(x in u.lower() for x in ("/rss","feed",".xml","atom","feeds"))]
-    seen, deduped = set(), []
-    for u in rss_like:
-        if u not in seen:
-            seen.add(u); deduped.append(u)
-    return deduped
-
-def categorize_feed(url: str) -> str | None:
-    lu = url.lower()
-    if any(d in lu for d in SPORTS_DOMAINS): return "sports"
-    if any(d in lu for d in MOVIE_DOMAINS):  return "movies"
-    if any(d in lu for d in BLOG_DOMAINS):   return "blogs"
-    if "/sport" in lu or "sports" in lu:     return "sports"
-    if "entertainment" in lu or "movies" in lu or "film" in lu: return "movies"
-    if "blog" in lu:                          return "blogs"
-    return None
-
-def word_count(s: str) -> int:
-    return len((s or "").strip().split())
-
 def html_to_text(html: str) -> str:
     soup = BeautifulSoup(html or "", "lxml")
-    for t in soup(["script","style","noscript"]):
-        t.extract()
+    for t in soup(["script","style","noscript"]): t.extract()
     text = soup.get_text(separator=" ")
     return re.sub(r"\s+", " ", text).strip()
 
-def split_paragraphs(text: str | None) -> list[str]:
-    """
-    Convert article text into an array of paragraphs for Story.content.
-    """
-    if not text:
-        return []
+def split_paragraphs(text: str | None) -> List[str]:
+    if not text: return []
     normalized = text.replace("\r\n", "\n")
-    # Try double-newline splits first
     parts = [p.strip() for p in normalized.split("\n\n") if p.strip()]
     if len(parts) == 1:
         parts = [p.strip() for p in normalized.split("\n") if p.strip()]
-    # As a fallback, break long runs into ~60–100 word chunks
     if len(parts) <= 1 and len(normalized.split()) > 120:
-        words = normalized.split()
-        chunk, out = [], []
+        words, chunk, out = normalized.split(), [], []
         for w in words:
             chunk.append(w)
             if len(chunk) >= 80:
@@ -121,10 +87,9 @@ def fetch_page(url: str) -> str | None:
     except Exception:
         return None
 
-def fetch_fulltext_and_html(url: str) -> tuple[str | None, str | None]:
+def fetch_text_and_html(url: str) -> Tuple[str | None, str | None]:
     html = fetch_page(url)
-    if not html:
-        return None, None
+    if not html: return None, None
     try:
         doc = Document(html)
         content_html = doc.summary(html_partial=True)
@@ -139,12 +104,9 @@ def best_entry_content(entry) -> str:
             parts = entry.content
             if parts and isinstance(parts, list) and parts[0].get("value"):
                 return html_to_text(parts[0]["value"])
-        except Exception:
-            pass
+        except Exception: pass
     val = entry.get("summary") or entry.get("description")
-    if val:
-        return html_to_text(val)
-    return ""
+    return html_to_text(val) if val else ""
 
 def parse_date(entry):
     for key in ("published", "updated", "created"):
@@ -152,32 +114,31 @@ def parse_date(entry):
         if val:
             try:
                 dt = dateparse.parse(val)
-                if dt and dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
+                if dt and dt.tzinfo is None: dt = dt.replace(tzinfo=timezone.utc)
                 return dt
-            except Exception:
-                pass
+            except Exception: pass
     return None
 
-def clean_entry(feed, entry, category):
+def clean_entry(feed, entry, category: str) -> Dict[str, Any] | None:
+    """
+    Build a story ONLY if:
+      - we have enough text (>= MIN_WORDS), AND
+      - we have an image (either from feed or resolved from the page).
+    """
     link = entry.get("link")
     title = (entry.get("title") or "").strip()
-    if not link or not title:
-        return None
+    if not link or not title: return None
 
-    # content (string)
     text = best_entry_content(entry)
     html_cache = None
-    if word_count(text) < MIN_WORDS:
-        # fetch and extract with readability
-        text, html_cache = fetch_fulltext_and_html(link)
-        if not text or word_count(text) < MIN_WORDS:
+    if len(text.split()) < MIN_WORDS:
+        text, html_cache = fetch_text_and_html(link)
+        if not text or len(text.split()) < MIN_WORDS:
             return None
 
-    # ensure content array
     content_arr = split_paragraphs(text)
 
-    # image: feed media → resolver via page HTML
+    # Image: feed media first
     image = None
     try:
         if "media_content" in entry and entry.media_content:
@@ -187,11 +148,14 @@ def clean_entry(feed, entry, category):
     except Exception:
         pass
 
+    # If no image, resolve from page HTML (required for this script)
     if not image:
-        if not html_cache:
-            html_cache = fetch_page(link)
+        if not html_cache: html_cache = fetch_page(link)
         if html_cache:
             image = resolve_best_image(html_cache, link, UA)
+    if not image:
+        # hard requirement: skip imageless items
+        return None
 
     source = (feed.feed.get("title") or feed.feed.get("link") or "").strip()
     guid = entry.get("id") or entry.get("guid")
@@ -201,44 +165,37 @@ def clean_entry(feed, entry, category):
     canonical_url = canonicalize_url(link)
     fingerprint = make_fingerprint(source, guid or "", title, published_iso or "", canonical_url or "")
 
+    summary = " ".join(content_arr)[:2000] if content_arr else text[:2000]
+
     return {
         "title": title[:250],
+        "summary": summary,
+        "content": content_arr,        # ARRAY of paragraphs
+        "image": image,
         "link": link.strip(),
         "canonicalUrl": canonical_url,
+        "source": source,
         "guid": guid,
         "fingerprint": fingerprint,
-        "summary": " ".join(content_arr)[:2000],  # short preview
-        "content": content_arr,                   # <-- ARRAY of paragraphs
-        "image": image,
-        "source": source,
-        "category": category,
+        "category": category,          # "movies" or "sports"
         "tags": [],
         "publishedAt": published_iso,
     }
 
-def post_batch(items_batch):
+def post_batch(items: List[Dict[str, Any]]):
+    if not items: return
     try:
-        resp = requests.post(API_URL, json={"items": items_batch}, timeout=REQUEST_TIMEOUT)
-        print("Posted batch:", len(items_batch), resp.status_code)
+        resp = requests.post(API_URL, json={"items": items}, timeout=REQUEST_TIMEOUT)
+        print("POST", len(items), "->", resp.status_code)
         if resp.status_code >= 400:
             print(resp.text[:500])
     except Exception as e:
         print("POST error:", e)
 
-def main():
-    urls = extract_urls_from_pdf(PDF_PATH)
-    selected = []
-    for u in urls:
-        cat = categorize_feed(u)
-        if cat:
-            selected.append((u, cat))
-    print(f"Selected {len(selected)} feeds")
-
-    cutoff = datetime.now(timezone.utc) - timedelta(days=CUTOFF_DAYS)
-    batch = []
-
-    for url, cat in selected:
-        print("Feed:", url, "->", cat)
+def ingest_feeds(feed_urls: List[str], category: str, cutoff: datetime) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for url in feed_urls:
+        print(f"[{category}] {url}")
         try:
             r = requests.get(url, headers={"User-Agent": UA}, timeout=REQUEST_TIMEOUT)
             r.raise_for_status()
@@ -249,15 +206,12 @@ def main():
 
             count = 0
             for e in feed.entries:
-                if count >= MAX_ITEMS_PER_FEED:
-                    break
+                if count >= MAX_ITEMS_PER_FEED: break
+                doc = clean_entry(feed, e, category)
+                if not doc: continue
 
-                doc = clean_entry(feed, e, cat)
-                if not doc:
-                    continue
-
-                # date filter (if we have a date)
-                if doc["publishedAt"]:
+                # cutoff by published date
+                if doc.get("publishedAt"):
                     try:
                         dt = dateparse.parse(doc["publishedAt"])
                         if dt.tzinfo is None:
@@ -267,22 +221,32 @@ def main():
                     except Exception:
                         pass
 
-                batch.append(doc)
+                out.append(doc)
                 count += 1
 
-                if len(batch) >= BATCH_SIZE:
-                    post_batch(batch)
-                    batch = []
-
         except requests.exceptions.Timeout:
-            print("  Timeout (60s) -> skipped")
+            print("  Timeout -> skipped")
         except Exception as ex:
             print("  Error:", ex)
 
         time.sleep(SLEEP_BETWEEN_FEEDS)
+    return out
 
-    if batch:
-        post_batch(batch)
+def main():
+    cutoff = datetime.now(timezone.utc) - timedelta(days=CUTOFF_DAYS)
+    movies = ingest_feeds(MOVIE_FEEDS, "movies", cutoff)
+    sports = ingest_feeds(SPORTS_FEEDS, "sports", cutoff)
+
+    print(f"Collected: movies={len(movies)} sports={len(sports)}")
+
+    # batch post (split if needed)
+    batch, n = [], 0
+    all_items = movies + sports
+    for item in all_items:
+        batch.append(item); n += 1
+        if len(batch) >= BATCH_SIZE:
+            post_batch(batch); batch = []
+    if batch: post_batch(batch)
     print("Done.")
 
 if __name__ == "__main__":

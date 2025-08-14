@@ -135,7 +135,7 @@ console.log(filteredFeatured,filteredRegular)
                 {sportsCategories.map((category) => (
                   <Button
                     key={category}
-                    variant={selectedCategory === category ? "default" : "outline"}
+                    variant={selectedCategory === category ? "default" : "primary"}
                     onClick={() => setSelectedCategory(category)}
                     className={`whitespace-nowrap ${
                       selectedCategory === category

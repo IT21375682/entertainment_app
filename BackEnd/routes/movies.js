@@ -4,13 +4,17 @@ import {
   getAllMovies,
   getFeaturedAndRecentMovies,
   getPaginatedMovies,
-  getMovieById
+  getMovieById,
+  bulkCreateMovies
+  
 } from "../controllers/movieController.js"
 
 const router = express.Router()
 
 router.post("/", createMovie)
+
 router.get("/", getAllMovies)
+router.post("/bulk", bulkCreateMovies)
 router.get("/featured-and-recent", getFeaturedAndRecentMovies)
 router.get("/paginated", getPaginatedMovies)
 router.get("/:id", getMovieById)

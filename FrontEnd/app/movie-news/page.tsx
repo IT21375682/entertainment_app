@@ -111,7 +111,7 @@ export default function MovieNewsPage() {
                 {categories.map((category) => (
                   <Button
                     key={category}
-                    variant={selectedCategory === category ? "default" : "outline"}
+                    variant={selectedCategory === category ? "default" : "primary"}
                     onClick={() => setSelectedCategory(category)}
                     className={`whitespace-nowrap ${
                       selectedCategory === category
@@ -174,7 +174,7 @@ export default function MovieNewsPage() {
                       </div>
                       <CardContent className="p-6">
                         <h3
-                          className={`font-bold mb-3 group-hover:text-red-400 transition-colors ${
+                          className={`font-bold mb-3 text-gray-200 group-hover:text-red-400 transition-colors ${
                             index === 0 ? "text-2xl" : "text-xl"
                           }`}
                         >
@@ -243,7 +243,7 @@ export default function MovieNewsPage() {
                       </Badge>
                     </div>
                     <CardContent className="p-4">
-                      <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-red-400 transition-colors">
+                      <h3 className="font-semibold text-gray-200 text-lg mb-2 line-clamp-2 group-hover:text-red-400 transition-colors">
                         {article.title}
                       </h3>
                       <p className="text-gray-400 text-sm mb-4 line-clamp-2">{article.description}</p>

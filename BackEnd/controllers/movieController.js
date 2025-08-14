@@ -11,6 +11,53 @@ export const createMovie = async (req, res) => {
   }
 }
 
+
+export const bulkCreateMovies = async (req, res) => {
+  try {
+    const items = Array.isArray(req.body) ? req.body : (req.body.items || [])
+    if (!items.length) {
+      return res.status(200).json({ ok: true, inserted: 0, upserted: 0 })
+    }
+
+    const now = new Date()
+    const ops = items.map((it) => {
+      if (it && typeof it.reference_id === "string" && it.reference_id.trim() !== "") {
+        // Upsert by reference_id
+        return {
+          updateOne: {
+            filter: { reference_id: it.reference_id },
+            update: {
+              $setOnInsert: { ...it, createdAt: now },
+              $set: { updatedAt: now }
+            },
+            upsert: true
+          }
+        }
+      }
+      // No reference_id — insert directly
+      return { insertOne: { document: it } }
+    })
+
+    const result = await Movie.bulkWrite(ops, { ordered: false })
+    return res.status(200).json({
+      ok: true,
+      inserted: result.insertedCount || 0,
+      upserted: result.upsertedCount || 0,
+      matched: result.matchedCount || 0,
+      modified: result.modifiedCount || 0
+    })
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({ ok: false, code: "DUP_KEY", error: err.message })
+    }
+    return res.status(500).json({ ok: false, error: err.message })
+  }
+}
+
+
+
+
+
 // Get all movie articles
 export const getAllMovies = async (req, res) => {
   try {

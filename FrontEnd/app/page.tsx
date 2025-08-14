@@ -248,7 +248,7 @@ export default function Homepage() {
         <Badge className="absolute top-3 left-3 bg-red-600">{item.category}</Badge>
       </div>
       <CardContent className="p-4">
-        <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-red-400 transition-colors">
+        <h3 className="font-semibold text-gray-200 text-lg mb-2 line-clamp-2 group-hover:text-red-400 transition-colors">
           {item.title}
         </h3>
         <p className="text-gray-400 text-sm mb-4 line-clamp-2">{item.description}</p>
@@ -270,8 +270,8 @@ export default function Homepage() {
             {trendingTags.map((tag) => (
               <Badge
                 key={tag}
-                variant="outline"
-                className="whitespace-nowrap border-gray-600 text-gray-300 hover:bg-gray-800"
+                variant="secondary"
+                className="whitespace-nowrap border-gray-600 bg-gray-600 text-gray-300 hover:bg-gray-800"
               >
                 {tag}
               </Badge>
