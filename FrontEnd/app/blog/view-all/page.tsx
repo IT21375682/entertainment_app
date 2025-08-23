@@ -10,7 +10,7 @@ export default function PaginatedBlogPage() {
   const [blogs, setBlogs] = useState([])
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
-  const limit = 10
+  const limit = 9
 
  useEffect(() => {
   const fetchBlogs = async () => {

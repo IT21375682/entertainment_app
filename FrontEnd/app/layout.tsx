@@ -6,7 +6,7 @@ import Header from '@/components/userNavbar'
 import Footer from '@/components/Footer'
 
 export const metadata: Metadata = {
-  title: 'StreamNews',
+  title: 'TrendStream',
   description: 'Created with v0',
   generator: 'v0.dev',
 }

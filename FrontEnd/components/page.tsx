@@ -151,14 +151,14 @@ export default function Homepage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen pt-5 bg-black text-white">
       {/* Navigation */}
       {/* <nav className="fixed top-0 w-full z-50 bg-black/90 backdrop-blur-md border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-8">
               <Link href="/" className="text-2xl font-bold text-red-500">
-                StreamNews
+                TrendStream
               </Link>
               <div className="hidden md:flex space-x-6">
                 <Link href="/movie-news" className="text-gray-300 hover:text-white transition-colors">
@@ -334,7 +334,7 @@ export default function Homepage() {
       </section>
 
       {/* Movie Showcase */}
-      <section className="py-16 bg-black">
+      {/* <section className="py-16 bg-black">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-bold">Watch Movies & Series</h2>
@@ -389,7 +389,7 @@ export default function Homepage() {
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Newsletter Signup */}
       <section className="py-16 bg-gray-900">
@@ -492,7 +492,7 @@ export default function Homepage() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-400">
-            <p>&copy; 2024 StreamNews. All rights reserved.</p>
+            <p>&copy; 2024 TrendStream. All rights reserved.</p>
           </div>
         </div>
       </footer>

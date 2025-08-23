@@ -18,7 +18,7 @@ export default function CustomerHeader() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-8">
               <Link href="/" className="text-2xl font-bold text-red-500">
-                StreamNews
+                TrendStream
               </Link>
               <div className="hidden md:flex space-x-6">
                 <Link href="/movie-news" className="text-gray-300 hover:text-white transition-colors">
@@ -33,9 +33,9 @@ export default function CustomerHeader() {
                 <Link href="/videos" className="text-gray-300 hover:text-white transition-colors">
                   Videos
                 </Link>
-                <Link href="/watch" className="text-gray-300 hover:text-white transition-colors">
+                {/* <Link href="/watch" className="text-gray-300 hover:text-white transition-colors">
                   Watch
-                </Link>
+                </Link> */}
               </div>
             </div>
 

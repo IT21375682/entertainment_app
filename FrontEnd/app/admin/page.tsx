@@ -125,9 +125,9 @@ export default function AdminDashboard() {
 
   // Site settings state
   const [siteSettings, setSiteSettings] = useState({
-    siteTitle: "StreamNews",
+    siteTitle: "TrendStream",
     siteDescription: "Your ultimate destination for entertainment news and streaming content.",
-    contactEmail: "admin@streamnews.com",
+    contactEmail: "admin@TrendStream.online",
     commentsEnabled: true,
     newsletterEnabled: true,
     analyticsEnabled: true,
@@ -190,7 +190,7 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-8">
               <Link href="/" className="text-2xl font-bold text-red-500">
-                StreamNews Admin
+                TrendStream Admin
               </Link>
               <div className="flex space-x-6">
                 <Button

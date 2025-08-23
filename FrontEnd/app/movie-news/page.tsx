@@ -281,7 +281,7 @@ export default function MovieNewsPage() {
                 disabled={loading}
                 className="bg-red-600 hover:bg-red-700"
               >
-                {loading ? "Loading..." : "Load More Articles"}
+                {loading ? "Loading..." : "paginated Articles"}
               </Button>
               </Link>
             </div>

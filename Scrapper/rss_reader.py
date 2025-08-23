@@ -3,7 +3,7 @@ import os, re, time, requests, feedparser, hashlib
 from datetime import datetime, timedelta, timezone
 from dateutil import parser as dateparse
 from PyPDF2 import PdfReader
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 from readability import Document
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 from image_resolver import resolve_best_image
@@ -43,6 +43,7 @@ BLOG_DOMAINS = [
 URL_RE = re.compile(r"https?://[^\s<>\"']+", re.I)
 TRACK_PARAMS = {"utm_source","utm_medium","utm_campaign","utm_term","utm_content","fbclid","gclid","mc_cid","mc_eid"}
 
+# --------- URL + de-dupe helpers ---------
 def canonicalize_url(raw: str) -> str | None:
     if not raw: return None
     try:
@@ -59,6 +60,7 @@ def make_fingerprint(source: str, guid: str, title: str, published_iso: str, can
             f"{(source or '').strip().lower()}|{(title or '').strip().lower()}|{(published_iso or '')[:10]}"
     return hashlib.sha256(basis.encode("utf-8")).hexdigest()
 
+# --------- feed list helpers ---------
 def extract_urls_from_pdf(pdf_path: str) -> list[str]:
     reader = PdfReader(pdf_path)
     text = "\n".join((page.extract_text() or "") for page in reader.pages)
@@ -80,28 +82,112 @@ def categorize_feed(url: str) -> str | None:
     if "blog" in lu:                          return "blogs"
     return None
 
+# --------- content utilities ---------
 def word_count(s: str) -> int:
     return len((s or "").strip().split())
 
+def normalize_ws(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "").strip())
+
 def html_to_text(html: str) -> str:
     soup = BeautifulSoup(html or "", "lxml")
-    for t in soup(["script","style","noscript"]):
-        t.extract()
+    for t in soup(["script","style","noscript"]): t.extract()
     text = soup.get_text(separator=" ")
-    return re.sub(r"\s+", " ", text).strip()
+    return normalize_ws(text)
 
-def split_paragraphs(text: str | None) -> list[str]:
+def extract_paragraphs_from_html(content_html: str) -> list[str]:
     """
-    Convert article text into an array of paragraphs for Story.content.
+    Parse article HTML into meaningful paragraphs:
+    - Keep <p>, list items (<li>), headings (<h1-6>), blockquotes, and pre/code blocks.
+    - Collapse whitespace, drop empty/trivial lines, strip share/caption junk.
+    - Join consecutive inline text & <br> as one paragraph.
+    """
+    if not content_html:
+        return []
+
+    soup = BeautifulSoup(content_html, "lxml")
+
+    # Remove obvious junk containers commonly injected in article bodies
+    junk_selectors = [
+        ".share", ".social", ".advert", ".ad", ".promo", ".newsletter",
+        ".caption", ".credit", ".byline", ".meta", ".tag-list", ".breadcrumbs",
+        "figure figcaption", ".inline-share", ".subscribe", ".read-more"
+    ]
+    for sel in junk_selectors:
+        for node in soup.select(sel):
+            node.decompose()
+
+    blocks: list[str] = []
+
+    def push(text: str):
+        t = normalize_ws(text)
+        # filter tiny residues like "Photo:" or single punctuation
+        if not t or len(t) < 2:
+            return
+        blocks.append(t)
+
+    # Prefer the top-most container of the Readability summary
+    container = soup
+    # Walk through top-level children to preserve order
+    for el in container.descendants:
+        if isinstance(el, NavigableString):
+            continue
+        name = el.name.lower() if el.name else ""
+
+        # Treat these as block-level paragraph sources
+        if name in ("p", "li"):
+            push(el.get_text(" ", strip=True))
+        elif name in ("h1","h2","h3","h4","h5","h6"):
+            # Headings become their own paragraphs
+            push(el.get_text(" ", strip=True))
+        elif name in ("blockquote",):
+            txt = el.get_text(" ", strip=True)
+            if txt:
+                push(txt)
+        elif name in ("pre","code"):
+            # Preserve code/pre with linebreaks collapsed to spaces
+            txt = " ".join(el.get_text("\n", strip=True).splitlines())
+            if txt:
+                push(txt)
+        # Skip duplicating by only pushing at element level, not on container end
+
+    # Fallback: if nothing was found (some sites wrap everything in <div>s)
+    if not blocks:
+        # Rebuild by breaking on <br> sequences and div boundaries
+        # Convert <br> runs into newline markers
+        for br in soup.find_all("br"):
+            br.replace_with("\n")
+        text = soup.get_text("\n", strip=True)
+        # Split on blank lines or single newlines if dense
+        paras = [normalize_ws(p) for p in re.split(r"\n{2,}|\r{2,}", text)]
+        if len(paras) <= 1:
+            paras = [normalize_ws(p) for p in text.split("\n")]
+        blocks = [p for p in paras if p]
+
+    # Merge spurious tiny “paras” that are just continuations (e.g., caption remnants)
+    merged: list[str] = []
+    for b in blocks:
+        if merged and (len(b) < 40 or not re.search(r"[.!?]$", b)):
+            # If current block is too short and previous doesn't end with hard punctuation,
+            # treat as a continuation.
+            if not re.search(r"[.!?]$", merged[-1]):
+                merged[-1] = normalize_ws(merged[-1] + " " + b)
+                continue
+        merged.append(b)
+
+    return merged
+
+def split_paragraphs_plain(text: str | None) -> list[str]:
+    """
+    Plain-text fallback if we have no article HTML.
+    Uses blank-line separation, then newline, then chunking.
     """
     if not text:
         return []
     normalized = text.replace("\r\n", "\n")
-    # Try double-newline splits first
-    parts = [p.strip() for p in normalized.split("\n\n") if p.strip()]
+    parts = [p.strip() for p in re.split(r"\n\s*\n", normalized) if p.strip()]
     if len(parts) == 1:
         parts = [p.strip() for p in normalized.split("\n") if p.strip()]
-    # As a fallback, break long runs into ~60–100 word chunks
     if len(parts) <= 1 and len(normalized.split()) > 120:
         words = normalized.split()
         chunk, out = [], []
@@ -121,30 +207,37 @@ def fetch_page(url: str) -> str | None:
     except Exception:
         return None
 
-def fetch_fulltext_and_html(url: str) -> tuple[str | None, str | None]:
+def fetch_fulltext_artifact(url: str) -> tuple[str | None, str | None, str | None]:
+    """
+    Returns: (plain_text_from_readability, full_html, readability_content_html)
+    """
     html = fetch_page(url)
     if not html:
-        return None, None
+        return None, None, None
     try:
         doc = Document(html)
         content_html = doc.summary(html_partial=True)
         text = html_to_text(content_html)
-        return (text or None), html
+        return (text or None), html, (content_html or None)
     except Exception:
-        return None, html
+        return None, html, None
 
-def best_entry_content(entry) -> str:
+def best_entry_html(entry) -> str | None:
+    """
+    Try to get embedded fulltext HTML from the feed item itself.
+    """
     if hasattr(entry, "content"):
         try:
             parts = entry.content
             if parts and isinstance(parts, list) and parts[0].get("value"):
-                return html_to_text(parts[0]["value"])
+                return parts[0]["value"]
         except Exception:
             pass
+    return None
+
+def best_entry_text(entry) -> str:
     val = entry.get("summary") or entry.get("description")
-    if val:
-        return html_to_text(val)
-    return ""
+    return html_to_text(val) if val else ""
 
 def parse_date(entry):
     for key in ("published", "updated", "created"):
@@ -165,19 +258,33 @@ def clean_entry(feed, entry, category):
     if not link or not title:
         return None
 
-    # content (string)
-    text = best_entry_content(entry)
+    # 1) Prefer HTML from the entry itself (many feeds embed full article)
+    entry_html = best_entry_html(entry)
+    content_arr = []
     html_cache = None
-    if word_count(text) < MIN_WORDS:
-        # fetch and extract with readability
-        text, html_cache = fetch_fulltext_and_html(link)
-        if not text or word_count(text) < MIN_WORDS:
-            return None
 
-    # ensure content array
-    content_arr = split_paragraphs(text)
+    if entry_html:
+        content_arr = extract_paragraphs_from_html(entry_html)
 
-    # image: feed media → resolver via page HTML
+    # 2) If too short, fetch page and use Readability HTML
+    if sum(len(p.split()) for p in content_arr) < MIN_WORDS:
+        text_fallback = best_entry_text(entry)
+        txt, html_cache, content_html = fetch_fulltext_artifact(link)
+        # Prefer the Readability HTML; otherwise fallback text
+        if content_html:
+            content_arr = extract_paragraphs_from_html(content_html)
+        elif txt:
+            content_arr = split_paragraphs_plain(txt)
+        elif text_fallback:
+            content_arr = split_paragraphs_plain(text_fallback)
+        else:
+            content_arr = []
+
+    # Still not enough content? Skip.
+    if sum(len(p.split()) for p in content_arr) < MIN_WORDS:
+        return None
+
+    # 3) Image: feed media → resolve via page HTML
     image = None
     try:
         if "media_content" in entry and entry.media_content:
@@ -186,7 +293,6 @@ def clean_entry(feed, entry, category):
             image = entry.media_thumbnail[0].get("url")
     except Exception:
         pass
-
     if not image:
         if not html_cache:
             html_cache = fetch_page(link)
@@ -201,14 +307,23 @@ def clean_entry(feed, entry, category):
     canonical_url = canonicalize_url(link)
     fingerprint = make_fingerprint(source, guid or "", title, published_iso or "", canonical_url or "")
 
+    # Trim excessive paragraph length
+    capped = []
+    total_words = 0
+    for p in content_arr:
+        if len(p) > 4000:
+            p = p[:4000] + "…"
+        capped.append(p)
+        total_words += len(p.split())
+
     return {
         "title": title[:250],
         "link": link.strip(),
         "canonicalUrl": canonical_url,
         "guid": guid,
         "fingerprint": fingerprint,
-        "summary": " ".join(content_arr)[:2000],  # short preview
-        "content": content_arr,                   # <-- ARRAY of paragraphs
+        "summary": " ".join(capped)[:2000],
+        "content": capped,                   # proper ARRAY of paragraphs
         "image": image,
         "source": source,
         "category": category,
