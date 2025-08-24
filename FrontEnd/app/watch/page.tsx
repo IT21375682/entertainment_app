@@ -49,7 +49,7 @@ useEffect(() => {
   params.append("page", reset ? 1 : page)
   params.append("limit", limit)
 
-  const res = await fetch(`http://localhost:5000/api/watch?${params.toString()}`)
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/watch?${params.toString()}`)
   const data = await res.json()
 
   if (reset) {
@@ -63,7 +63,7 @@ useEffect(() => {
 
 
   const fetchTrending = async () => {
-    const res = await fetch("http://localhost:5000/api/watch/trending")
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/watch/trending")
     const data = await res.json()
     setTrending(data.trending || [])
     console.log("Fetched trending movies:", data.trending) // Debug line

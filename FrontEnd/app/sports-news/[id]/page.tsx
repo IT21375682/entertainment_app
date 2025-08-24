@@ -16,7 +16,7 @@ export default function SportsArticlePage() {
 
     const fetchArticle = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/sports/${id}`)
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/sports/${id}`)
         if (!res.ok) throw new Error("Not found")
         const data = await res.json()
         setArticle(data)

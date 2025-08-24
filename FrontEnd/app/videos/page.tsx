@@ -23,7 +23,7 @@ export default function VideosPage() {
   const limit = 6
 
   const fetchVideos = async () => {
-    const res = await fetch(`http://localhost:5000/api/videos/paginated?page=${page}&limit=${limit}`)
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/videos/paginated?page=${page}&limit=${limit}`)
     const data = await res.json()
 
     setVideos((prev) => [...prev, ...data.videos])

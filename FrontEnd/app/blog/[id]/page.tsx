@@ -21,6 +21,7 @@ import {
 import Image from "next/image"
 import Link from "next/link"
 
+
 export default function BlogPostPage() {
   const { id } = useParams()
   const [article, setArticle] = useState(null)
@@ -29,7 +30,7 @@ export default function BlogPostPage() {
   useEffect(() => {
     const fetchArticle = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/blogs/${id}`)
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/blogs/${id}`)
         const data = await res.json()
         setArticle(data)
       } catch (error) {

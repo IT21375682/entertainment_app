@@ -15,7 +15,7 @@ export default function PaginatedSportsPage() {
   useEffect(() => {
     const fetchSports = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/sports/paginated?page=${page}&limit=${limit}`)
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/sports/paginated?page=${page}&limit=${limit}`)
         const data = await res.json()
 
         if (page === 1) {

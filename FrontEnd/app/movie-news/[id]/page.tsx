@@ -16,7 +16,7 @@ export default function ArticleDetailPage() {
   useEffect(() => {
     const fetchArticle = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/api/movies/${params.id}`)
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/movies/${params.id}`)
         if (!res.ok) {
           throw new Error("Failed to fetch article")
         }

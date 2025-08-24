@@ -15,7 +15,7 @@ export default function PaginatedMovieNewsPage() {
 
   useEffect(() => {
     const fetchMovies = async () => {
-      const res = await fetch(`http://localhost:5000/api/movies/paginated?page=${page}&limit=${limit}`)
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/movies/paginated?page=${page}&limit=${limit}`)
       const data = await res.json()
 
       if (page === 1) {

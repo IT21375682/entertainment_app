@@ -35,7 +35,7 @@ export default function SportsNewsPage() {
   useEffect(() => {
   const fetchSportsArticles = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/sports/featured-and-recent")
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/sports/featured-and-recent`)
       const data = await res.json()
       setFeaturedArticles(data.featured   || [])
       setRegularArticles(data.recent || [])

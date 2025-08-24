@@ -97,7 +97,7 @@ export default function Homepage() {
       fetchTrending()
     }, [])
    const fetchTrending = async () => {
-    const res = await fetch("http://localhost:5000/api/watch/trending")
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/watch/trending`)
     const data = await res.json() 
     setMovieShowcase(data.trending || [])
     console.log("Fetched trending movies:", data.trending) // Debug line
@@ -113,7 +113,7 @@ export default function Homepage() {
     useEffect(() => {
     const fetchShowcases = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/top-stories")
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/top-stories`)
         const data = await res.json()
         setShowcases(data.stories || [])
    

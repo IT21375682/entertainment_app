@@ -49,7 +49,7 @@ export default function MovieNewsPage() {
   useEffect(() => {
     const fetchMovies = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/movies/featured-and-recent")
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/movies/featured-and-recent`)
         const data = await res.json()
         setFeaturedArticles(data.featured || [])
         setRegularArticles(data.recent || [])

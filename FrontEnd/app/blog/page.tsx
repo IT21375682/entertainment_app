@@ -33,7 +33,7 @@ export default function BlogPage() {
     useEffect(() => {
     const fetchBlogs = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/blogs/featured-and-recent")
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/blogs/featured-and-recent`)
         const data = await res.json()
         setFeaturedPosts(data.featured || [])
         setRegularPosts(data.recent || [])
