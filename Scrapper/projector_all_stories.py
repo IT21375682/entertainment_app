@@ -9,9 +9,9 @@ import requests
 
 API_BASE = os.getenv("API_BASE", "http://localhost:5000")
 STORIES_ENDPOINT = os.getenv("STORIES_ENDPOINT", "/api/stories")  # GET
-MOVIES_BULK = os.getenv("MOVIES_BULK", "/api/movies/bulk")        # POST
-BLOGS_BULK  = os.getenv("BLOGS_BULK",  "/api/blogs/bulk")         # POST
-SPORTS_BULK = os.getenv("SPORTS_BULK", "/api/sports/bulk")        # POST
+MOVIES_BULK = os.getenv("MOVIES_BULK", "https://trendstream.online/api/api/movies/bulk")        # POST
+BLOGS_BULK  = os.getenv("BLOGS_BULK",  "https://trendstream.online/api/api/blogs/bulk")         # POST
+SPORTS_BULK = os.getenv("SPORTS_BULK", "https://trendstream.online/api/api/sports/bulk")        # POST
 
 TIMEOUT = int(os.getenv("TIMEOUT", "30"))
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", "100"))
@@ -70,7 +70,8 @@ def post_bulk(endpoint: str, items: List[Dict[str, Any]]):
             "User-Agent": UA,
             "Idempotency-Key": idempotency_key({"items": _items}),
         }
-        return requests.post(urljoin(API_BASE, endpoint), json={"items": _items}, headers=headers, timeout=TIMEOUT)
+        return requests.post((endpoint), json={"items": _items}, headers=headers, timeout=TIMEOUT)
+    
     n = len(items)
     if n == 0: return
     size = min(BATCH_SIZE, n)

@@ -63,7 +63,7 @@ useEffect(() => {
 
 
   const fetchTrending = async () => {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/watch/trending")
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE}/watch/trending`)
     const data = await res.json()
     setTrending(data.trending || [])
     console.log("Fetched trending movies:", data.trending) // Debug line
