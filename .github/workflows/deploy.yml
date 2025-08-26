@@ -19,7 +19,7 @@ jobs:
           cache: "npm"
           cache-dependency-path: |
             FrontEnd/package-lock.json
-            Backend/package-lock.json
+            BackEnd/package-lock.json
 
       # Frontend CI build (adjust paths if different)
       - name: Frontend install & build
@@ -64,7 +64,7 @@ jobs:
           # paths (adjust if your repo lives elsewhere)
           REPO_DIR=/www/wwwroot/trendstream.online/entertainment_app
           FRONTEND_DIR=$REPO_DIR/FrontEnd
-          BACKEND_DIR=$REPO_DIR/Backend
+          BACKEND_DIR=$REPO_DIR/BackEnd
 
           # 1) update code
           cd "$REPO_DIR"
