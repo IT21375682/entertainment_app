@@ -19,6 +19,7 @@ const blogSchema = new mongoose.Schema({
   type: String
 }, { timestamps: true })
 
+
 // OPTIONAL: prevent duplicates when reference_id is provided
 blogSchema.index({ reference_id: 1 }, { unique: true, sparse: true })
 
