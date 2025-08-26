@@ -30,7 +30,7 @@ jobs:
 
       # Backend quick install (optional test/build)
       - name: Backend install
-        working-directory: Backend
+        working-directory: BackEnd
         run: |
           npm ci
 
