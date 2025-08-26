@@ -2,12 +2,15 @@ name: CI/CD to VM
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build-check:
     name: Build check (CI)
     runs-on: ubuntu-latest
+    env:
+      # enforce ignoring peer conflicts during CI until deps are fixed
+      NPM_CONFIG_LEGACY_PEER_DEPS: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,11 +24,11 @@ jobs:
             FrontEnd/package-lock.json
             BackEnd/package-lock.json
 
-      # Frontend CI build (adjust paths if different)
+      # Frontend CI build
       - name: Frontend install & build
         working-directory: FrontEnd
         run: |
-          npm ci --legacy-peer-deps
+          npm ci
           NODE_ENV=production npm run build
 
       # Backend quick install (optional test/build)
@@ -58,37 +61,44 @@ jobs:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
         run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'bash -s' << "EOF"
+          ssh -o StrictHostKeyChecking=yes -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'bash -s' <<'EOF'
           set -euo pipefail
 
-          # paths (adjust if your repo lives elsewhere)
           REPO_DIR=/www/wwwroot/trendstream.online/entertainment_app
           FRONTEND_DIR=$REPO_DIR/FrontEnd
           BACKEND_DIR=$REPO_DIR/BackEnd
 
-          # 1) update code
-          cd "$REPO_DIR"
-          git fetch origin
-          git reset --hard origin/main
+          # ensure path exists
+          mkdir -p "$REPO_DIR"
 
-          # 2) FRONTEND build
-          cd "$FRONTEND_DIR"
-          # ensure proper cache ownership if needed
-          if [ -d /www/server/nodejs/cache ]; then
-            sudo chown -R "$(id -u)":"$(id -g)" /www/server/nodejs/cache || true
+          # allow git in case ownership is mixed
+          git config --global --add safe.directory "$REPO_DIR" || true
+
+          # if repo exists update, else clone
+          if [ -d "$REPO_DIR/.git" ]; then
+            cd "$REPO_DIR"
+            git fetch origin
+            git reset --hard origin/main
+            git clean -fdx
+          else
+            rm -rf "$REPO_DIR"
+            git clone --branch main --depth 1 https://github.com/IT21375682/entertainment_app "$REPO_DIR"
+            cd "$REPO_DIR"
           fi
+
+          # FRONTEND build (tolerate peer conflicts)
+          cd "$FRONTEND_DIR"
+          export NPM_CONFIG_LEGACY_PEER_DEPS=true
           npm ci
           NODE_ENV=production npm run build
 
-          # 3) BACKEND deps (build if you have one)
+          # BACKEND deps (no peer issues expected)
           cd "$BACKEND_DIR"
           npm ci
-          # npm run build   # uncomment if backend has a build step
+          # npm run build   # uncomment if needed
 
-          # 4) restart PM2 apps (do not spawn duplicates)
+          # restart PM2 apps without duplicating
           pm2 restart trendstream-frontend || pm2 start "npm run start -- -p 3000" --name trendstream-frontend --cwd "$FRONTEND_DIR"
-          pm2 restart trendstream-backend  || pm2 start "npm run start" --name trendstream-backend --cwd "$BACKEND_DIR"
-
-          # persist pm2 process list
+          pm2 restart trendstream-backend  || pm2 start "npm run start"            --name trendstream-backend  --cwd "$BACKEND_DIR"
           pm2 save
           EOF
