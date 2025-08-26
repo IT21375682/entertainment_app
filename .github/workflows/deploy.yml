@@ -25,7 +25,7 @@ jobs:
       - name: Frontend install & build
         working-directory: FrontEnd
         run: |
-          npm ci
+          npm ci --include=peer
           NODE_ENV=production npm run build
 
       # Backend quick install (optional test/build)
