@@ -1,0 +1,94 @@
+name: CI/CD to VM
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-check:
+    name: Build check (CI)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            FrontEnd/package-lock.json
+            Backend/package-lock.json
+
+      # Frontend CI build (adjust paths if different)
+      - name: Frontend install & build
+        working-directory: FrontEnd
+        run: |
+          npm ci
+          NODE_ENV=production npm run build
+
+      # Backend quick install (optional test/build)
+      - name: Backend install
+        working-directory: Backend
+        run: |
+          npm ci
+
+  deploy:
+    name: Deploy to VM
+    needs: build-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (for version/commit info)
+        uses: actions/checkout@v4
+
+      - name: Install SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Add VM to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.SSH_PORT || 22 }}" "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Remote deploy over SSH
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+        run: |
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'bash -s' << "EOF"
+          set -euo pipefail
+
+          # paths (adjust if your repo lives elsewhere)
+          REPO_DIR=/www/wwwroot/trendstream.online/entertainment_app
+          FRONTEND_DIR=$REPO_DIR/FrontEnd
+          BACKEND_DIR=$REPO_DIR/Backend
+
+          # 1) update code
+          cd "$REPO_DIR"
+          git fetch origin
+          git reset --hard origin/main
+
+          # 2) FRONTEND build
+          cd "$FRONTEND_DIR"
+          # ensure proper cache ownership if needed
+          if [ -d /www/server/nodejs/cache ]; then
+            sudo chown -R "$(id -u)":"$(id -g)" /www/server/nodejs/cache || true
+          fi
+          npm ci
+          NODE_ENV=production npm run build
+
+          # 3) BACKEND deps (build if you have one)
+          cd "$BACKEND_DIR"
+          npm ci
+          # npm run build   # uncomment if backend has a build step
+
+          # 4) restart PM2 apps (do not spawn duplicates)
+          pm2 restart trendstream-frontend || pm2 start "npm run start -- -p 3000" --name trendstream-frontend --cwd "$FRONTEND_DIR"
+          pm2 restart trendstream-backend  || pm2 start "npm run start" --name trendstream-backend --cwd "$BACKEND_DIR"
+
+          # persist pm2 process list
+          pm2 save
+          EOF
