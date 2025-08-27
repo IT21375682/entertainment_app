@@ -8,9 +8,9 @@ export default function StyleGuide() {
     <div className="min-h-screen bg-black text-white p-8">
       <div className="max-w-6xl mx-auto space-y-12">
         <div>
-          <h1 className="text-4xl font-bold mb-4">StreamNews Style Guide</h1>
+          <h1 className="text-4xl font-bold mb-4">TrendStream Style Guide</h1>
           <p className="text-gray-400 text-lg">
-            Design system and component specifications for the StreamNews platform
+            Design system and component specifications for the TrendStream platform
           </p>
         </div>
 
