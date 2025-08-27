@@ -404,6 +404,7 @@ export default function Homepage() {
           </div>
         </div>
       </section>
+      
 
       {/* Footer */}
       {/* <footer className="bg-black border-t border-gray-800 py-12">
